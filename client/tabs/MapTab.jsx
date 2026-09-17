@@ -29,10 +29,11 @@ const VIEWS = [
   { id: 'foodie', label: 'Food' },
   { id: 'kids', label: 'Kids' },
   { id: 'odd', label: 'Odd' },
+  { id: 'all', label: 'All' },
 ];
 
 export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) {
-  const [date, setDate] = useState(todayInAustin());
+  const [date, setDate] = useState('upcoming'); // 'upcoming' or a YYYY-MM-DD
   const [night, setNight] = useState(null);
   const [places, setPlaces] = useState([]);
   const [error, setError] = useState(null);
@@ -109,18 +110,21 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
     for (const ev of ['touchend', 'touchmove', 'mouseup', 'movestart', 'dragstart']) map.on(ev, cancelPress);
   }
 
+  const upcoming = date === 'upcoming';
+  const path = upcoming ? `/api/upcoming?view=${view}&days=45` : `/api/night?date=${date}&view=${view === 'all' ? me.person.default_view : view}`;
+
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [n, p] = await Promise.all([api(`/api/night?date=${date}&view=${view}`), api('/api/places')]);
+      const [n, p] = await Promise.all([api(path), api('/api/places')]);
       setNight(n);
       setPlaces(p.places);
-      cacheSet('events', n, `night:${date}:${view}`);
+      cacheSet('events', n, `feed:${date}:${view}`);
       cacheSet('places', p.places);
     } catch (e) {
       setError(e);
-      const [cn, cp] = await Promise.all([cacheGet('events', `night:${date}:${view}`), cacheGet('places')]);
+      const [cn, cp] = await Promise.all([cacheGet('events', `feed:${date}:${view}`), cacheGet('places')]);
       if (cn) setNight(cn);
       if (cp) setPlaces(cp);
     } finally {
@@ -197,6 +201,10 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
           ))}
         </div>
         <div className="daystrip">
+          <button type="button" className={upcoming ? 'on' : ''} onClick={() => setDate('upcoming')}>
+            Upcoming
+            <em>next 45d</em>
+          </button>
           {days.map((d) => (
             <button key={d} type="button" className={d === date ? 'on' : ''} onClick={() => setDate(d)}>
               {d === todayInAustin() ? 'Today' : dayLabel(d).replace(/,.*/, '')}
@@ -226,6 +234,7 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
             </div>
           ) : null}
 
+          {!upcoming ? (
           <div className="block">
             <h2>Who is around</h2>
             {night ? (
@@ -235,22 +244,34 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
               </p>
             ) : null}
           </div>
+          ) : null}
 
           <div className="block">
-            <h2>{night?.events?.length ? 'On that night' : 'Nothing on. Places worth it.'}</h2>
+            <h2>
+              {upcoming
+                ? night?.total
+                  ? `${night.total} coming up`
+                  : 'Nothing found yet'
+                : night?.events?.length
+                  ? 'On that night'
+                  : 'Nothing on. Places worth it.'}
+            </h2>
             {night?.events?.length
               ? night.events.map((e) => (
                   <article key={e.id} className="row" onClick={() => onOpenEvent(e)}>
-                    <time className="row-time">{timeLabel(e.starts_at)}</time>
+                    <time className="row-time">
+                      {upcoming ? <>{dayLabel(e.starts_at.slice(0, 10))}<br /></> : null}
+                      {timeLabel(e.starts_at)}
+                    </time>
                     <div className="row-main">
                       <strong>{e.title}</strong>
-                      <span className="muted">{e.place?.name}</span>
+                      <span className="muted">{e.place?.name}{e.groups?.length ? ` \u00b7 ${e.groups.join(', ')}` : ''}</span>
                       {e.interest_count ? <span className="muted"><Names people={e.interested} total={e.interest_count} /> interested</span> : null}
                     </div>
                   </article>
                 ))
               : null}
-            {!night?.events?.length && fallback.length
+            {!upcoming && !night?.events?.length && fallback.length
               ? fallback.map((p) => (
                   <article key={p.id} className="row" onClick={() => onOpenPlace(p)}>
                     <span className="row-time">{p.minutes ? `${p.minutes}m` : '·'}</span>
@@ -262,7 +283,11 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
                 ))
               : null}
             {!loading && !night?.events?.length && !fallback.length ? (
-              <Empty>Nothing on and nothing vouched yet. Long-press the map to add a place you would stand behind.</Empty>
+              <Empty>
+                {upcoming
+                  ? 'No events yet. Run the pipeline from the Sources tab, then check back.'
+                  : 'Nothing on and nothing vouched yet. Long-press the map to add a place you would stand behind.'}
+              </Empty>
             ) : null}
             {!anchor && fallback.length ? (
               <Button onClick={setHome}>Set the map centre as home, for drive times</Button>

@@ -3,9 +3,16 @@
 ## 1. Deployed
 v0.1.0 is live on Cloudflare. Kevin moves this line when v0.1.1 is pushed.
 
-## 2. Since deployed (v0.1.3, delta on top of v0.1.0)
+## 2. Since deployed (v0.1.4, delta on top of v0.1.0)
 
-**Delta only.** No migration, no change to the test script. 106 tests green.
+**Delta only. One new migration.** No change to the test script. 111 tests green.
+
+**v0.1.4 — three problems from the second run, only one of them the pipeline**
+- **There was no browse.** The app only ever answered "what about this specific night", which is a design hole, not a bug. New `GET /api/upcoming?view=&days=`: everything ahead, date ordered, **ignoring the score bar on purpose**. The night read keeps the bar because it is the opinionated answer; a browse view that hides things is not a browse view. The Map tab now opens on **Upcoming** over 45 days, with the individual days still in the strip. Map and calendar both gained an **All** option across every group.
+- **The bar was hiding almost everything.** A rule-classified event scores about 45 and the default bar was 50. Default is now 25; `migrations/0003_bar.sql` moves an existing room off 50.
+- **The kids tag was wrong.** The source hint was applied as a label and Austin Public Library was hinted `kids`, so an older-adult book club came back kid friendly. The hint is now a tiebreak for an otherwise unclassifiable listing, never a label on its own; a `NOT_KIDS` pattern (adult, 21+, seniors, wine, and so on) blocks the kids group outright; APL's hint is gone because the library programs for every age.
+- **The calendar made one request per day, fourteen deep.** One request for the whole range now, with 2 week, 6 week, and 4 month spans.
+- `discover` reports `by_source` and `seen_before`, so a feed yielding nothing is visible instead of averaged into the total.
 
 **v0.1.3 — diagnosed from the first real run (pages 46, listings 32, no_place 20, invalid 10, scored 0)**
 - Root cause of the empty app: no model was configured, so both tiers were null, every classify attempt returned `no_tier1`, and `invalid 10` meant nothing got groups, so nothing got scored, so nothing cleared the bar.

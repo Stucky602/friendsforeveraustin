@@ -18,7 +18,7 @@ export const SOURCES = [
   },
   {
     name: 'apl',
-    group_hint: 'kids',
+    group_hint: null, // the library programs for every age; let the words decide
     index_urls: ['https://library.austintexas.gov/events'],
     detail_match: /library\.austintexas\.gov\/event\//,
   },
@@ -26,7 +26,7 @@ export const SOURCES = [
   { name: 'museum:bullock', group_hint: 'odd', index_urls: ['https://www.thestoryoftexas.com/visit/calendar'] },
   { name: 'museum:thinkery', group_hint: 'kids', index_urls: ['https://thinkeryaustin.org/calendar/'] },
   { name: 'museum:contemporary', group_hint: 'odd', index_urls: ['https://thecontemporaryaustin.org/events/'] },
-  { name: 'kidsoutandabout', group_hint: 'kids', index_urls: ['https://austin.kidsoutandabout.com/calendar'] },
+  { name: 'kidsoutandabout', group_hint: 'kids', index_urls: ['https://austin.kidsoutandabout.com/calendar'] }, // this one really is a kids feed
   { name: 'do512', group_hint: null, index_urls: ['https://do512.com/events/this-weekend'], detail_match: /do512\.com\/events\/\d{4}\// },
   { name: 'chronicle', group_hint: null, index_urls: ['https://www.austinchronicle.com/events/'], detail_match: /austinchronicle\.com\/events\/[a-z]/ },
 ];

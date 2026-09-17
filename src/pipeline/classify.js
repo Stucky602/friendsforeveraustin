@@ -100,6 +100,9 @@ export function scoreEvent({ source, groups, answers, vouchCount = 0 }) {
 // A model, when present, still runs first and wins.
 // ---------------------------------------------------------------------------
 
+// Blocks the kids group outright. Checked before anything else.
+const NOT_KIDS = /\b(adults? only|adult|21\+|18\+|no minors|seniors?|older adults?|wine|beer|cocktail|whiskey|bar crawl|burlesque|drag brunch)\b/i;
+
 const GROUP_WORDS = {
   kids: /\b(kids?|children|child|toddler|toddlers|family|families|all ages|story ?time|preschool|playground|camp|puppet|petting|ages? \d|youth|junior)\b/i,
   foodie: /\b(food|foods|dinner|supper|brunch|breakfast|lunch|tasting|taste of|chef|menu|dining|restaurant|beer|brewery|wine|winery|cocktail|distillery|bbq|barbecue|taco|pizza|bakery|farmers? market|pop.?up|happy hour|supper club)\b/i,
@@ -160,8 +163,15 @@ function ruleCost(text) {
 export function ruleClassify(listing, groupHint = null) {
   const text = listingText(listing);
   const groups = new Set();
-  if (groupHint && GROUPS.includes(groupHint)) groups.add(groupHint);
+
   for (const [g, re] of Object.entries(GROUP_WORDS)) if (re.test(text)) groups.add(g);
+
+  // kids needs its own positive evidence and survives no negative signal. A source hint
+  // is a tiebreak for an otherwise unclassifiable listing, never a label on its own.
+  if (NOT_KIDS.test(text)) groups.delete('kids');
+  if (!groups.size && groupHint && GROUPS.includes(groupHint)) {
+    if (groupHint !== 'kids' || !NOT_KIDS.test(text)) groups.add(groupHint);
+  }
 
   const answers = {
     cost: ruleCost(text),

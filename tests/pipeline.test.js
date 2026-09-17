@@ -281,3 +281,25 @@ test('a listing with no venue name falls back to the address, then the source ve
   const { SOURCE_VENUE } = await import('../src/pipeline/run.js');
   assert.equal(SOURCE_VENUE.alamo, 'Alamo Drafthouse');
 });
+
+test('an adult book club at the library is never tagged kids', async () => {
+  const { ruleClassify } = await import('../src/pipeline/classify.js');
+  const adult = ruleClassify({ title: 'Adult Book Club: October pick', description: 'For older adults. Discussion and coffee.', venue_name: 'Austin Public Library', price_text: '' }, 'kids');
+  assert.ok(!adult.groups.includes('kids'), 'the source hint must not override the words');
+  assert.ok(adult.groups.includes('odd'));
+
+  const wine = ruleClassify({ title: 'Wine tasting', description: '21+ only.', venue_name: 'X', price_text: '' }, 'kids');
+  assert.ok(!wine.groups.includes('kids'));
+
+  const real = ruleClassify({ title: 'Toddler Story Time', description: 'Ages 2 to 4 welcome.', venue_name: 'Austin Public Library', price_text: '' }, null);
+  assert.ok(real.groups.includes('kids'), 'positive evidence still works with no hint at all');
+});
+
+test('a source hint only breaks ties, it never labels on its own', async () => {
+  const { ruleClassify } = await import('../src/pipeline/classify.js');
+  const vague = ruleClassify({ title: 'Untitled gathering', description: '', venue_name: '', price_text: '' }, 'odd');
+  assert.deepEqual(vague.groups, ['odd'], 'nothing else matched, so the hint applies');
+  const clear = ruleClassify({ title: 'Toddler Story Time', description: 'Ages 2 to 4.', venue_name: '', price_text: '' }, 'odd');
+  assert.ok(clear.groups.includes('kids'));
+  assert.ok(!clear.groups.includes('odd'), 'the words won, so the hint stayed out');
+});

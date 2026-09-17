@@ -22,6 +22,32 @@ export function utcWindowFor(date) {
   return { from: new Date(day - 12 * 3600e3).toISOString(), to: new Date(day + 36 * 3600e3).toISOString() };
 }
 
+/**
+ * Everything coming up, ignoring the score bar on purpose.
+ * The night read is the opinionated "what should we do" answer and keeps the bar.
+ * This is the browse-everything answer, so a low score demotes a listing, never hides it.
+ */
+export async function upcomingRead(ctx, repo, { view, days = 30, limit = 200 }) {
+  const now = Date.now();
+  const from = new Date(now - 6 * 3600e3).toISOString();
+  const to = new Date(now + days * 86400e3).toISOString();
+  const raw = await repo.events({ from, to, groups: view && VIEWS.includes(view) ? [view] : [] });
+  const events = (await decorateEvents(ctx, repo, raw))
+    .sort((a, b) => (a.starts_at < b.starts_at ? -1 : a.starts_at > b.starts_at ? 1 : b.score - a.score))
+    .slice(0, limit);
+
+  const mine = await repo.plansForMember(ctx.viewer.id);
+  const plans = [];
+  for (const p of mine) {
+    if (p.status !== 'open') continue;
+    const full = await planForViewer(ctx, repo, p);
+    if (full) plans.push(full);
+  }
+  plans.sort((a, b) => (a.starts_at < b.starts_at ? -1 : 1));
+
+  return { view: view ?? null, days, total: events.length, events, plans };
+}
+
 export async function nightRead(ctx, repo, room, { date, view }) {
   if (!isDate(date)) throw Object.assign(new Error('bad date'), { status: 400, code: 'bad_request' });
   if (!VIEWS.includes(view)) throw Object.assign(new Error('bad view'), { status: 400, code: 'bad_request' });
@@ -30,7 +56,7 @@ export async function nightRead(ctx, repo, room, { date, view }) {
   const who = await whoOnDate(ctx, repo, date);
 
   // 2. What's on. Live events on that Chicago date, groups ∩ view, score >= bar.
-  const bar = Number.isFinite(room?.bar) ? room.bar : 50;
+  const bar = Number.isFinite(room?.bar) ? room.bar : 25;
   const { from, to } = utcWindowFor(date);
   const raw = await repo.events({ from, to, groups: [view] });
   const onDate = raw.filter((e) => chicagoDate(e.starts_at) === date && e.score >= bar);

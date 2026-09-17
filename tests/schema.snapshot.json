@@ -1,7 +1,8 @@
 {
-  "sha256": "9c54332d626de5059a2347cce354d4912bd3b093160231246489ddd4a431283a",
+  "sha256": "38c81a708e2ad1ebf5b9fc7f8a02a4ba683690f745372405397b68bd91318279",
   "files": [
     "0001_init.sql",
-    "0002_pipeline.sql"
+    "0002_pipeline.sql",
+    "0003_bar.sql"
   ]
 }

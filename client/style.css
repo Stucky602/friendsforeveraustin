@@ -399,3 +399,6 @@ p { margin: 0 0 8px; }
   padding: 10px; border-radius: 2px;
   overflow-x: auto; white-space: pre;
 }
+
+.viewswitch-inline { margin-bottom: 10px; }
+.row-time { line-height: 1.25; }

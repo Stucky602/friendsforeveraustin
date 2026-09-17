@@ -31,7 +31,7 @@ Scope reminder (drift check): personal, not work, not LTB. Kevin plus friends, w
 
 `room`
 - `id`, `name`, `owner_person_id`, `bar`, `created_at`
-- `bar`: the score threshold for §3.5, default 50, owner-editable.
+- `bar`: the score threshold for §3.5, default 25, owner-editable. It gates the night read only; the upcoming list ignores it, because a browse view that hides things is not a browse view.
 - One room for now. The table exists so a second friend group is a row, not a rewrite.
 - Creation order: insert room with null owner, insert the owner person, update room. The circularity is deliberate.
 
@@ -133,7 +133,7 @@ Scope reminder (drift check): personal, not work, not LTB. Kevin plus friends, w
 ### 1.5 Initial schema (paste-ready for the D1 console)
 
 ```
-CREATE TABLE room (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_person_id TEXT, bar INTEGER NOT NULL DEFAULT 50, created_at TEXT NOT NULL);
+CREATE TABLE room (id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_person_id TEXT, bar INTEGER NOT NULL DEFAULT 25, created_at TEXT NOT NULL);
 CREATE TABLE person (id TEXT PRIMARY KEY, room_id TEXT NOT NULL, display_name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, groups TEXT NOT NULL DEFAULT '[]', kid_ages TEXT, default_view TEXT NOT NULL DEFAULT 'odd', visibility TEXT NOT NULL DEFAULT 'mutual', removed_at TEXT, created_at TEXT NOT NULL);
 CREATE TABLE review (id TEXT PRIMARY KEY, place_id TEXT NOT NULL, person_id TEXT NOT NULL, visited_on TEXT, verdict TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE place (id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT, lat REAL, lng REAL, neighborhood TEXT, groups TEXT NOT NULL DEFAULT '[]', canonical_key TEXT NOT NULL UNIQUE, geocode_source TEXT, geocoded_at TEXT, created_by TEXT NOT NULL, merged_into TEXT, created_at TEXT NOT NULL);

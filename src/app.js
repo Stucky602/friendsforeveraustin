@@ -3,7 +3,7 @@
 
 import { resolveViewer, newToken, hashToken, personalLink } from './lib/auth.js';
 import { loadContext, roster, decoratePlaces, decorateEvents, planForViewer, ownEventInterestIds } from './lib/gate.js';
-import { nightRead, VIEWS } from './lib/night.js';
+import { nightRead, upcomingRead, VIEWS } from './lib/night.js';
 import { canonicalKey, chicagoDate } from './lib/normalize.js';
 import { canSelfTransition, validateCreate, planText } from './lib/plans.js';
 import { answerLabels } from './lib/answers.js';
@@ -231,6 +231,15 @@ export function createApp(repo, env = {}, deps = {}) {
     const date = url.searchParams.get('date') || chicagoDate(nowIso());
     const view = url.searchParams.get('view') || v.person.default_view;
     return json(await nightRead(ctx, repo, v.room, { date, view }));
+  });
+
+  on('GET', '/api/upcoming', async ({ v, ctx, url }) => {
+    await completeDue();
+    const q = url.searchParams;
+    const viewParam = q.get('view');
+    const view = viewParam === 'all' ? null : (viewParam || v.person.default_view);
+    const days = Math.min(Math.max(Number(q.get('days')) || 30, 1), 120);
+    return json(await upcomingRead(ctx, repo, { view, days }));
   });
 
   // ---------- room ----------

@@ -1,25 +1,61 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api, todayInAustin, addDays, dayLabel, timeLabel } from '../data.js';
+import { api, todayInAustin, dayLabel, timeLabel } from '../data.js';
 import { Button, Empty, ErrorNote, Spinner } from '../ui.jsx';
 
-const WEEK = 7;
+const RANGES = [
+  { days: 14, label: '2 weeks' },
+  { days: 45, label: '6 weeks' },
+  { days: 120, label: '4 months' },
+];
+const GROUPS = [
+  { id: 'all', label: 'All' },
+  { id: 'foodie', label: 'Food' },
+  { id: 'kids', label: 'Kids' },
+  { id: 'odd', label: 'Odd' },
+];
+
+const chicagoDay = (iso) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date(iso))
+    .filter((p) => p.type !== 'literal')
+    .reduce((a, p) => ({ ...a, [p.type]: p.value }), {});
+
+const dayKey = (iso) => {
+  const d = chicagoDay(iso);
+  return `${d.year}-${d.month}-${d.day}`;
+};
 
 export default function CalendarTab({ me, onOpenEvent }) {
-  const [start, setStart] = useState(todayInAustin());
-  const [days, setDays] = useState(null);
+  const [view, setView] = useState('all');
+  const [days, setDays] = useState(45);
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const dates = useMemo(() => Array.from({ length: WEEK * 2 }, (_, i) => addDays(start, i)), [start]);
-
+  // One request for the whole range. This used to be one request per day, fourteen deep.
   const load = async () => {
+    setLoading(true);
     setError(null);
-    try {
-      const out = {};
-      for (const d of dates) out[d] = await api(`/api/night?date=${d}&view=${me.person.default_view}`);
-      setDays(out);
-    } catch (e) { setError(e); }
+    try { setData(await api(`/api/upcoming?view=${view}&days=${days}`)); }
+    catch (e) { setError(e); }
+    finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, [start]);
+  useEffect(() => { load(); }, [view, days]);
+
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const p of data?.plans ?? []) {
+      const k = dayKey(p.starts_at);
+      if (!map.has(k)) map.set(k, { plans: [], events: [] });
+      map.get(k).plans.push(p);
+    }
+    for (const e of data?.events ?? []) {
+      const k = dayKey(e.starts_at);
+      if (!map.has(k)) map.set(k, { plans: [], events: [] });
+      map.get(k).events.push(e);
+    }
+    return [...map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  }, [data]);
 
   const ics = async () => {
     try {
@@ -33,42 +69,60 @@ export default function CalendarTab({ me, onOpenEvent }) {
     } catch (e) { setError(e); }
   };
 
+  const today = todayInAustin();
+
   return (
     <div className="pad">
-      <div className="btnrow">
-        <Button onClick={() => setStart(addDays(start, -WEEK))}>Back a week</Button>
-        <Button onClick={() => setStart(todayInAustin())}>Today</Button>
-        <Button onClick={() => setStart(addDays(start, WEEK))}>Forward a week</Button>
+      <div className="viewswitch viewswitch-inline" role="tablist" aria-label="What to show">
+        {GROUPS.map((g) => (
+          <button key={g.id} type="button" role="tab" aria-selected={view === g.id} className={view === g.id ? 'on' : ''} onClick={() => setView(g.id)}>
+            {g.label}
+          </button>
+        ))}
       </div>
+      <div className="btnrow">
+        {RANGES.map((r) => (
+          <Button key={r.days} kind={days === r.days ? 'on' : 'default'} onClick={() => setDays(r.days)}>{r.label}</Button>
+        ))}
+      </div>
+
       <ErrorNote error={error} onRetry={load} />
-      {!days ? <Spinner /> : null}
-      {days
-        ? dates.map((d) => {
-            const n = days[d];
-            const busy = (n?.events?.length ?? 0) + (n?.plans?.length ?? 0);
-            return (
-              <section key={d} className={`day ${d === todayInAustin() ? 'day-today' : ''}`}>
-                <h2>
-                  {dayLabel(d)}
-                  {n?.who?.free?.length ? <span className="muted">{n.who.free.map((p) => p.display_name).join(', ')} free</span> : null}
-                </h2>
-                {n?.plans?.map((p) => (
-                  <div key={p.id} className="row row-plan">
-                    <time className="row-time">{timeLabel(p.starts_at)}</time>
-                    <div className="row-main"><strong>Your plan</strong><span className="muted">{p.members.filter((m) => m.state === 'in').length} in</span></div>
-                  </div>
-                ))}
-                {n?.events?.slice(0, 4).map((e) => (
-                  <div key={e.id} className="row" onClick={() => onOpenEvent(e)}>
-                    <time className="row-time">{timeLabel(e.starts_at)}</time>
-                    <div className="row-main"><strong>{e.title}</strong><span className="muted">{e.place?.name}</span></div>
-                  </div>
-                ))}
-                {!busy ? <p className="day-quiet">Quiet</p> : null}
-              </section>
-            );
-          })
-        : null}
+      {loading && !data ? <Spinner /> : null}
+      {data && !grouped.length ? (
+        <Empty>Nothing in the next {days} days. Run the pipeline from the Sources tab if this seems wrong.</Empty>
+      ) : null}
+
+      {grouped.map(([d, { plans, events }]) => (
+        <section key={d} className={`day ${d === today ? 'day-today' : ''}`}>
+          <h2>
+            {dayLabel(d)}
+            <span className="muted">{events.length + plans.length}</span>
+          </h2>
+          {plans.map((p) => (
+            <div key={p.id} className="row row-plan">
+              <time className="row-time">{timeLabel(p.starts_at)}</time>
+              <div className="row-main">
+                <strong>Your plan</strong>
+                <span className="muted">{p.members.filter((m) => m.state === 'in').length} in</span>
+              </div>
+            </div>
+          ))}
+          {events.map((e) => (
+            <div key={e.id} className="row" onClick={() => onOpenEvent(e)}>
+              <time className="row-time">{timeLabel(e.starts_at)}</time>
+              <div className="row-main">
+                <strong>{e.title}</strong>
+                <span className="muted">
+                  {e.place?.name}
+                  {e.groups?.length ? ` \u00b7 ${e.groups.join(', ')}` : ''}
+                  {e.interest_count ? ` \u00b7 ${e.interest_count} interested` : ''}
+                </span>
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+
       <div className="btnrow">
         <Button onClick={ics}>Download what I am in for (.ics)</Button>
       </div>

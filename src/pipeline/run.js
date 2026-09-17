@@ -52,7 +52,7 @@ export function createRunner({ repo, roomId, env = {}, deps = {} }) {
 
   // ---- discover: fetch, extract, insert raw listings (place resolved, event attached) ----
   async function discover() {
-    const counts = { pages: 0, listings: 0, muted: 0, no_place: 0, attached: 0, inserted: 0, parked: [] };
+    const counts = { pages: 0, listings: 0, muted: 0, no_place: 0, attached: 0, inserted: 0, seen_before: 0, parked: [], by_source: {} };
     const mutes = await repo.mutes(roomId);
     counts.ltb = await discoverLtb(counts, mutes);
     for (const src of SOURCES) {
@@ -156,8 +156,9 @@ export function createRunner({ repo, roomId, env = {}, deps = {} }) {
   async function ingest(listings, src, mutes, counts) {
     for (const l of listings) {
       counts.listings++;
+      counts.by_source[l.source] = (counts.by_source[l.source] || 0) + 1;
       const already = await repo.eventBySource(l.source, l.source_id);
-      if (already) { await repo.touchEvent(already.event_id, nowIso()); continue; }
+      if (already) { await repo.touchEvent(already.event_id, nowIso()); counts.seen_before++; continue; }
 
       const muted = mutedCategory(l, mutes);
       const place = await resolvePlace(l);
