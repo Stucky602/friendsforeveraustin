@@ -1,0 +1,9 @@
+{
+  "name": "Room",
+  "short_name": "Room",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16191d",
+  "theme_color": "#16191d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

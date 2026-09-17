@@ -1,0 +1,7 @@
+{
+  "sha256": "9c54332d626de5059a2347cce354d4912bd3b093160231246489ddd4a431283a",
+  "files": [
+    "0001_init.sql",
+    "0002_pipeline.sql"
+  ]
+}

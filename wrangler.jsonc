@@ -1,0 +1,12 @@
+{
+  "name": "room",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "assets": { "directory": "dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "room", "database_id": "8b36f45e-d282-4ffd-95f3-25c2c3313d51" }
+  ],
+  "triggers": { "crons": ["0 */6 * * *"] },
+  "vars": { "APP_VERSION": "0.1.0" }
+}

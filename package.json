@@ -1,0 +1,25 @@
+{
+  "name": "room",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "build": "npm test && vite build",
+    "dev": "vite",
+    "deploy": "npm run build && npx wrangler deploy"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.10.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}
