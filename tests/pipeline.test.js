@@ -138,17 +138,27 @@ test('classify: never reprocesses, falls back to the source hint, records no_gro
   assert.deepEqual((await repo.eventById('E1')).groups, ['odd']);
 });
 
-test('classify: invalid model output leaves the event unclassified, never half-written', async () => {
+test('invalid model output never half-writes, and falls through to rules', async () => {
   const repo = await seedRoom();
   await repo.insertPlace({ id: 'P1', name: 'A', address: null, groups: [], canonical_key: 'a|', created_by: 'pipeline', created_at: '2026-09-01T00:00:00Z' });
-  await repo.insertEvent({ id: 'E1', place_id: 'P1', title: 'One', starts_at: '2026-09-25T00:30:00Z', groups: [], answers: {}, score: 0, status: 'live', dedupe_key: 'k1', raw: {}, first_seen: 'x', last_seen: 'x' });
-  const r = createRunner({ repo, roomId: 'R1', env: { AI: { run: async () => ({ response: 'here you go: {"groups":["odd"],"answers":{"cost":{"value":"free","confidence":0.9,"evidence":"invented"}}}' }) } }, deps: {} });
+  await repo.insertEvent({ id: 'E1', place_id: 'P1', title: 'Untitled', starts_at: '2026-09-25T00:30:00Z', groups: [], answers: {}, score: 0, status: 'live', dedupe_key: 'k1', raw: {}, first_seen: 'x', last_seen: 'x' });
+  await repo.insertEvent({ id: 'E2', place_id: 'P1', title: 'Family Story Time', starts_at: '2026-09-25T00:30:00Z', groups: [], answers: {}, score: 0, status: 'live', dedupe_key: 'k2', raw: { description: 'Free, all ages.' }, first_seen: 'x', last_seen: 'x' });
+  const bad = 'here you go: {"groups":["odd"],"answers":{"cost":{"value":"free","confidence":0.9,"evidence":"invented"}}}';
+  const r = createRunner({ repo, roomId: 'R1', env: { AI: { run: async () => ({ response: bad }) } }, deps: {} });
   const c = await r.classify();
-  assert.equal(c.invalid, 1);
-  const e = await repo.eventById('E1');
-  assert.deepEqual(e.groups, []);
-  assert.deepEqual(e.answers, {});
-  assert.equal(e.status, 'live', 'still live so the next run can retry');
+  assert.equal(c.tier1, 0, 'the model output was rejected');
+  assert.equal(c.rules, 2, 'both fell through to rules');
+
+  // nothing half-written: the invented evidence never reached the database
+  const e1 = await repo.eventById('E1');
+  assert.ok(!JSON.stringify(e1.answers).includes('invented'));
+  assert.equal(e1.status, 'rejected');
+  assert.equal(e1.reject_reason, 'no_group', 'rules found nothing either, and it says so');
+
+  const e2 = await repo.eventById('E2');
+  assert.deepEqual(e2.groups, ['kids']);
+  assert.equal(e2.answers.cost.value, 'free');
+  assert.ok(!JSON.stringify(e2.answers).includes('invented'));
 });
 
 test('spend: tier 2 charged, hard cap stops tier 2', async () => {
@@ -201,4 +211,73 @@ test('the fetch cache honours a zero max age without breaking the rate limit', a
   await f.get('https://a.test/x', { maxAgeMs: 0 });
   assert.equal(hits, 2, 'no cache hit when maxAgeMs is 0');
   assert.ok(slept >= 3000, 'still rate limited');
+});
+
+test('rule classifier: works with no model at all, and never invents evidence', async () => {
+  const { ruleClassify } = await import('../src/pipeline/classify.js');
+  const r = ruleClassify({ title: 'Story Time for Toddlers', description: 'Free. All ages welcome.', venue_name: 'Austin Public Library', price_text: '' }, 'kids');
+  assert.ok(r.groups.includes('kids'));
+  assert.equal(r.reject, null);
+  assert.equal(r.answers.cost.value, 'free');
+  assert.equal(r.answers.kid_ok.value, 'yes');
+  const text = 'Story Time for Toddlers\nAustin Public Library\nFree. All ages welcome.';
+  for (const a of Object.values(r.answers)) assert.ok(a.evidence === '' || text.includes(a.evidence), `invented evidence: ${a.evidence}`);
+
+  const odd = ruleClassify({ title: 'Terror Tuesday: The Cat', description: '35mm screening. $10 tickets.', venue_name: 'Alamo', price_text: '' }, 'odd');
+  assert.ok(odd.groups.includes('odd'));
+  assert.equal(odd.answers.cost.value, '$');
+
+  const nothing = ruleClassify({ title: 'Untitled', description: '', venue_name: '', price_text: '' }, null);
+  assert.deepEqual(nothing.groups, []);
+  assert.deepEqual(nothing.reject, { reason: 'no_group' });
+});
+
+test('rule output always passes the strict answer validator', async () => {
+  const { ruleClassify, listingText } = await import('../src/pipeline/classify.js');
+  const { validateAnswers } = await import('../src/lib/answers.js');
+  const cases = [
+    { title: 'Family Day at the Museum', description: 'Free admission, parking garage on site. Ages 3 and up.', venue_name: 'Blanton', price_text: '' },
+    { title: 'Taco pop-up', description: '$25 per person. Street parking only. It gets loud.', venue_name: 'Somewhere', price_text: '' },
+    { title: 'Lecture', description: '21+ quiet reading room. $60.', venue_name: 'X', price_text: '' },
+  ];
+  for (const c of cases) {
+    const r = ruleClassify(c, null);
+    const v = validateAnswers(r, listingText(c));
+    assert.ok(v.ok, `${c.title}: ${v.error}`);
+  }
+});
+
+test('classify stage runs with no model configured and produces groups', async () => {
+  const repo = withPipeline(memoryRepo());
+  await repo.insertRoom({ id: 'R1', name: 'R', owner_person_id: null, bar: 50, created_at: '2026-09-01T00:00:00Z' });
+  await repo.setMutes('R1', []);
+  await repo.insertPlace({ id: 'P1', name: 'Austin Public Library', address: null, groups: [], canonical_key: 'austin public library|', created_by: 'pipeline', created_at: 'x' });
+  await repo.insertEvent({ id: 'E1', place_id: 'P1', title: 'Story Time for Toddlers', starts_at: '2026-10-01T15:00:00Z', groups: [], answers: {}, score: 0, status: 'live', dedupe_key: 'k1', raw: { description: 'Free. All ages.', group_hint: 'kids' }, first_seen: 'x', last_seen: 'x' });
+  const r = createRunner({ repo, roomId: 'R1', env: {}, deps: {} });
+  const c = await r.classify();
+  assert.equal(c.no_model, true);
+  assert.equal(c.rules, 1);
+  assert.equal(c.invalid, 0);
+  assert.deepEqual((await repo.eventById('E1')).groups, ['kids']);
+  const s = await r.score();
+  assert.equal(s.scored, 1);
+  assert.ok((await repo.eventById('E1')).score > 0);
+});
+
+test('a listing with no venue name falls back to the address, then the source venue', async () => {
+  const repo = withPipeline(memoryRepo());
+  await repo.insertRoom({ id: 'R1', name: 'R', owner_person_id: null, bar: 50, created_at: 'x' });
+  await repo.setMutes('R1', []);
+  const r = createRunner({ repo, roomId: 'R1', env: {}, deps: { geocode: async () => null } });
+  const html = `<script type="application/ld+json">{"@type":"Event","@id":"a","name":"No venue name","startDate":"2026-10-02T18:00:00Z","location":{"address":"1120 S Lamar Blvd, Austin, TX"}}</script>`;
+  const html2 = `<script type="application/ld+json">{"@type":"Event","@id":"b","name":"No location at all","startDate":"2026-10-03T18:00:00Z"}</script>`;
+  const { extractListings } = await import('../src/pipeline/extract.js');
+  const counts = { listings: 0, no_place: 0, muted: 0, attached: 0, inserted: 0 };
+  // exercise resolvePlace through the runner's own ingest path
+  const listings = [...extractListings(html, { source: 'alamo', pageUrl: 'u' }), ...extractListings(html2, { source: 'alamo', pageUrl: 'u' })];
+  assert.equal(listings.length, 2);
+  assert.equal(listings[0].venue_name, '');
+  assert.equal(listings[1].venue_name, '');
+  const { SOURCE_VENUE } = await import('../src/pipeline/run.js');
+  assert.equal(SOURCE_VENUE.alamo, 'Alamo Drafthouse');
 });

@@ -319,6 +319,10 @@ export function createApp(repo, env = {}, deps = {}) {
     return json({ stage: params.stage, started: true }, 202);
   });
   on('GET', '/api/run/status', async ({ v }) => { requireOwner(v); return json({ stages: await repo.runState() }); });
+  on('GET', '/api/run/diagnose', async ({ v }) => {
+    requireOwner(v);
+    return json(await repo.diagnose());
+  });
   on('GET', '/api/run/spend', async ({ v }) => {
     requireOwner(v);
     const month = new Date().toISOString().slice(0, 7);

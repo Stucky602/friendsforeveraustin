@@ -161,6 +161,15 @@ export function withPipeline(repo) {
     async setEventScore(id, score) { const e = t.event.find((x) => x.id === id); if (e) e.score = score; },
     async expireEvents(nowIso_) { let n = 0; for (const e of t.event) { if (e.status !== 'live') continue; const end = e.ends_at ? Date.parse(e.ends_at) : Date.parse(e.starts_at) + 6 * 3600e3; if (end <= Date.parse(nowIso_)) { e.status = 'expired'; n++; } } return n; },
     async withdrawUnseen(cutoff, nowIso_) { let n = 0; for (const e of t.event) { if (e.status !== 'live') continue; if (e.starts_at <= nowIso_) continue; if (e.last_seen > cutoff) continue; e.status = 'rejected'; e.reject_reason = 'withdrawn'; n++; } return n; },
+    async diagnose() {
+      const g = (rows, key) => rows.reduce((a, r) => ({ ...a, [r[key] ?? 'null']: (a[r[key] ?? 'null'] || 0) + 1 }), {});
+      return {
+        places: { total: t.place.length, with_coords: t.place.filter((p) => p.lat != null).length, awaiting_geocode: t.place.filter((p) => p.lat == null && p.geocode_source == null).length, by_geocode_source: g(t.place, 'geocode_source') },
+        events: { total: t.event.length, by_status: g(t.event, 'status'), by_reject: g(t.event.filter((e) => e.status === 'rejected'), 'reject_reason'), classified: t.event.filter((e) => JSON.parse(e.groups || '[]').length).length, scored_above_zero: t.event.filter((e) => e.score > 0).length, live_future: t.event.filter((e) => e.status === 'live' && e.starts_at > new Date().toISOString()).length },
+        sources: g(t.event_source, 'source'),
+        sample: t.event.filter((e) => e.status === 'live').slice(0, 5).map((e) => ({ title: e.title, starts_at: e.starts_at, score: e.score, groups: JSON.parse(e.groups || '[]'), place_id: e.place_id, place: (t.place.find((p) => p.id === e.place_id) || {}).name ?? 'MISSING' })),
+      };
+    },
     async restoreWithdrawn(cutoff) { let n = 0; for (const e of t.event) { if (e.status === 'rejected' && e.reject_reason === 'withdrawn' && e.last_seen > cutoff) { e.status = 'live'; e.reject_reason = null; n++; } } return n; },
   });
 }

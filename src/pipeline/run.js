@@ -7,6 +7,16 @@ import { mutedCategory, classifyOne, scoreEvent } from './classify.js';
 import { canonicalKey, dedupeKey, chicagoDate, shouldAttach } from '../lib/normalize.js';
 import { ulid, nowIso, neighborhoodFor, censusGeocode } from '../lib/util.js';
 
+// Sources that are themselves a single venue. Used when a listing has no location at all.
+export const SOURCE_VENUE = {
+  alamo: 'Alamo Drafthouse',
+  'museum:blanton': 'Blanton Museum of Art',
+  'museum:bullock': 'Bullock Texas State History Museum',
+  'museum:thinkery': 'Thinkery',
+  'museum:contemporary': 'The Contemporary Austin',
+  apl: 'Austin Public Library',
+};
+
 export const STAGES = ['discover', 'dedupe', 'geocode', 'classify', 'score', 'expire', 'all'];
 export const WITHDRAW_AFTER_DAYS = 7;
 export const MONTHLY_CAP_CENTS = 500;
@@ -151,7 +161,7 @@ export function createRunner({ repo, roomId, env = {}, deps = {} }) {
 
       const muted = mutedCategory(l, mutes);
       const place = await resolvePlace(l);
-      if (!place) { counts.no_place++; continue; }
+      if (!place) { counts.no_place++; counts.no_place_by = counts.no_place_by || {}; counts.no_place_by[l.source] = (counts.no_place_by[l.source] || 0) + 1; continue; }
 
       const key = dedupeKey(place.id, l.starts_at, l.title);
       const existing = await repo.eventByDedupeKey(key);
@@ -188,7 +198,11 @@ export function createRunner({ repo, roomId, env = {}, deps = {} }) {
   }
 
   async function resolvePlace(l) {
-    const name = (l.venue_name || '').trim();
+    // 62% of listings were being dropped because the JSON-LD had no location name. Fall back
+    // to the address, then to the source itself, before giving up on an otherwise good listing.
+    let name = (l.venue_name || '').trim();
+    if (!name && l.venue_address) name = String(l.venue_address).split(',')[0].trim();
+    if (!name && SOURCE_VENUE[l.source]) name = SOURCE_VENUE[l.source];
     if (!name) return null;
     const key = canonicalKey(name, l.venue_address);
     const found = await repo.placeByKey(key);
@@ -221,14 +235,14 @@ export function createRunner({ repo, roomId, env = {}, deps = {} }) {
 
   // ---- classify: never reprocess (skips any event with non-empty groups) ----
   async function classify(limit = 40) {
-    const counts = { tried: 0, tier1: 0, tier2: 0, no_group: 0, muted: 0, invalid: 0 };
+    const counts = { tried: 0, rules: 0, tier1: 0, tier2: 0, no_group: 0, muted: 0, invalid: 0, no_model: !env.AI && !env.ANTHROPIC_API_KEY };
     for (const e of await repo.eventsNeedingClassify(limit)) {
       counts.tried++;
       const raw = e.raw || {};
       const listing = { title: e.title, description: raw.description || '', venue_name: raw.venue_name || '', price_text: raw.price_text || '', category_hint: raw.category_hint || '' };
-      const r = await classifyOne(listing, { ai, anthropic, spend });
+      const r = await classifyOne(listing, { ai, anthropic, spend, groupHint: raw.group_hint || null });
       if (r.error) { counts.invalid++; continue; }
-      counts[`tier${r.tier}`]++;
+      if (r.tier === 0) counts.rules++; else counts[`tier${r.tier}`]++;
       const { groups, reject, answers } = r.value;
       if (reject?.reason === 'mute') { await repo.setEventStatus(e.id, 'rejected', 'mute'); counts.muted++; continue; }
       if (groups.length === 0) {

@@ -82,6 +82,8 @@ export default function Pipeline() {
         })}
       </section>
 
+      <Diagnose />
+
       {spend ? (
         <section className="block">
           <h2>Model spend this month</h2>
@@ -91,6 +93,22 @@ export default function Pipeline() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+function Diagnose() {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="block">
+      <h2>What is actually in the database</h2>
+      <div className="btnrow">
+        <Button onClick={async () => { setBusy(true); try { setData(await api('/api/run/diagnose')); } finally { setBusy(false); } }} disabled={busy}>
+          {busy ? 'Checking' : 'Check'}
+        </Button>
+      </div>
+      {data ? <pre className="diag">{JSON.stringify(data, null, 2)}</pre> : null}
+    </section>
   );
 }
 

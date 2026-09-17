@@ -224,6 +224,29 @@ export function withPipeline(repo, db) {
       return r.meta?.changes ?? 0;
     },
     async withdrawUnseen(cutoff, nowIso_) { const r = await run("UPDATE event SET status = 'rejected', reject_reason = 'withdrawn' WHERE status = 'live' AND starts_at > ? AND last_seen <= ?", nowIso_, cutoff); return r.meta?.changes ?? 0; },
+    async diagnose() {
+      const tally = async (sql, key) => Object.fromEntries((await all(sql)).map((r) => [r[key] ?? 'null', r.n]));
+      const one = async (sql) => (await first(sql))?.n ?? 0;
+      const sample = await all("SELECT e.title, e.starts_at, e.score, e.groups, e.place_id, p.name AS place FROM event e LEFT JOIN place p ON p.id = e.place_id WHERE e.status = 'live' ORDER BY e.starts_at LIMIT 5");
+      return {
+        places: {
+          total: await one('SELECT COUNT(*) AS n FROM place'),
+          with_coords: await one('SELECT COUNT(*) AS n FROM place WHERE lat IS NOT NULL'),
+          awaiting_geocode: await one('SELECT COUNT(*) AS n FROM place WHERE lat IS NULL AND geocode_source IS NULL'),
+          by_geocode_source: await tally('SELECT geocode_source, COUNT(*) AS n FROM place GROUP BY geocode_source', 'geocode_source'),
+        },
+        events: {
+          total: await one('SELECT COUNT(*) AS n FROM event'),
+          by_status: await tally('SELECT status, COUNT(*) AS n FROM event GROUP BY status', 'status'),
+          by_reject: await tally("SELECT reject_reason, COUNT(*) AS n FROM event WHERE status = 'rejected' GROUP BY reject_reason", 'reject_reason'),
+          classified: await one("SELECT COUNT(*) AS n FROM event WHERE groups != '[]'"),
+          scored_above_zero: await one('SELECT COUNT(*) AS n FROM event WHERE score > 0'),
+          live_future: await one("SELECT COUNT(*) AS n FROM event WHERE status = 'live' AND starts_at > datetime('now')"),
+        },
+        sources: await tally('SELECT source, COUNT(*) AS n FROM event_source GROUP BY source', 'source'),
+        sample: sample.map((r) => ({ ...r, groups: JSON.parse(r.groups || '[]'), place: r.place ?? 'MISSING' })),
+      };
+    },
     async restoreWithdrawn(cutoff) { const r = await run("UPDATE event SET status = 'live', reject_reason = NULL WHERE status = 'rejected' AND reject_reason = 'withdrawn' AND last_seen > ?", cutoff); return r.meta?.changes ?? 0; },
   });
 }

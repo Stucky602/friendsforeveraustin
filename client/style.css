@@ -392,3 +392,10 @@ p { margin: 0 0 8px; }
 .counts li { display: flex; gap: 5px; align-items: baseline; font-size: 13px; }
 .counts-k { color: var(--ink-2); }
 .counts-v { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.diag {
+  font-family: var(--mono); font-size: 12px; line-height: 1.35;
+  background: var(--field); color: var(--ink);
+  padding: 10px; border-radius: 2px;
+  overflow-x: auto; white-space: pre;
+}

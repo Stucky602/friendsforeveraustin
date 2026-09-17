@@ -3,9 +3,18 @@
 ## 1. Deployed
 v0.1.0 is live on Cloudflare. Kevin moves this line when v0.1.1 is pushed.
 
-## 2. Since deployed (v0.1.2, delta on top of v0.1.0)
+## 2. Since deployed (v0.1.3, delta on top of v0.1.0)
 
-**Delta only.** No migration, no change to the test script.
+**Delta only.** No migration, no change to the test script. 106 tests green.
+
+**v0.1.3 — diagnosed from the first real run (pages 46, listings 32, no_place 20, invalid 10, scored 0)**
+- Root cause of the empty app: no model was configured, so both tiers were null, every classify attempt returned `no_tier1`, and `invalid 10` meant nothing got groups, so nothing got scored, so nothing cleared the bar.
+- `wrangler.jsonc` — added the Workers AI binding (`env.AI`). Free tier, no key needed.
+- `src/pipeline/classify.js` — new `ruleClassify()`: deterministic keyword and source-hint classification with no model, no network, no spend. Used when no model is configured and as the fallback when a model returns something invalid. Evidence is always a verbatim substring, so rule output passes the same strict validator as model output. The app now produces a usable list with zero AI configured; a model, when present, still runs first and wins.
+- `src/pipeline/run.js` — `no_place` was losing 62% of listings because the JSON-LD had no `location.name`. Now falls back to the first line of the address, then to a per-source venue name (Alamo, the four museums, APL). Also reports `no_place_by` source, and `no_model` on the classify counts so the cause is on screen instead of showing up as "invalid".
+- `src/app.js`, both repos — `GET /api/run/diagnose`: raw table counts (places with and without coords, events by status and reject reason, event_source by source, five live samples). Written because `geocode tried 0` after 10 inserts is a fact question and guessing at it is not engineering.
+- `client/tabs/Pipeline.jsx`, `client/style.css` — a Check button that dumps that diagnosis on screen.
+- `tests/pipeline.test.js` — four added: rule classifier output, rule output passing the strict validator, the classify stage running with no model, and the rewritten invalid-output test now asserting fallthrough to rules with no half-write.
 
 **v0.1.2**
 - `client/tabs/Pipeline.jsx` (new) — owner-only Sources tab. Run everything, or one stage at a time, with per-stage counts, last-ok time, errors, and the month's model spend against the cap. Nothing in this app finds an event until this runs or the six-hour cron fires, and there was no way to trigger it from a phone.

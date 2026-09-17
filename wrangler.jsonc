@@ -7,6 +7,7 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "room", "database_id": "8b36f45e-d282-4ffd-95f3-25c2c3313d51" }
   ],
+  "ai": { "binding": "AI" },
   "triggers": { "crons": ["0 */6 * * *"] },
   "vars": { "APP_VERSION": "0.1.0" }
 }
