@@ -3,9 +3,18 @@
 ## 1. Deployed
 v0.1.0 is live on Cloudflare. Kevin moves this line when v0.1.1 is pushed.
 
-## 2. Since deployed (v0.1.1, delta on top of v0.1.0)
+## 2. Since deployed (v0.1.2, delta on top of v0.1.0)
 
-**This zip contains four files only.** No migration, no change to the test script.
+**Delta only.** No migration, no change to the test script.
+
+**v0.1.2**
+- `client/tabs/Pipeline.jsx` (new) — owner-only Sources tab. Run everything, or one stage at a time, with per-stage counts, last-ok time, errors, and the month's model spend against the cap. Nothing in this app finds an event until this runs or the six-hour cron fires, and there was no way to trigger it from a phone.
+- `client/tabs/MapTab.jsx` — the map style URL was a single guess, and a wrong one renders a silent blank container. It now tries liberty, bright, positron, then the MapLibre demo style, uses the first that returns usable style JSON, and shows a plain message on screen if all four fail. Also added a ResizeObserver plus a resize on load, because a flex parent can size after the map is constructed and leave it blank.
+- `client/App.jsx` — fifth tab, owner only. Four for everyone else.
+- `client/style.css` — Sources tab counts, five-up tab bar, map error panel.
+- `tests/staleRefs.test.js` — now asserts four tabs for everyone, a fifth gated on `is_owner`, and a rendered panel for each.
+
+**v0.1.1**
 
 - `src/app.js` — `/api/me` now returns `is_owner`.
 - `client/tabs/PeopleTab.jsx` — the owner gets an Add someone panel, a link handoff with Copy and Text it, and a New link action per person. Adding people no longer needs a console.

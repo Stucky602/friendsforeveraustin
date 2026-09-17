@@ -5,6 +5,7 @@ const MapTab = lazy(() => import('./tabs/MapTab.jsx'));
 import CalendarTab from './tabs/CalendarTab.jsx';
 import PeopleTab from './tabs/PeopleTab.jsx';
 import PlansTab from './tabs/PlansTab.jsx';
+import Pipeline from './tabs/Pipeline.jsx';
 import FirstOpen from './tabs/FirstOpen.jsx';
 import { api, claimTokenFromUrl, getToken, timeLabel, watchVersion, reloadForNewVersion } from './data.js';
 import { Button, Empty, ErrorNote, Spinner, Names } from './ui.jsx';
@@ -85,10 +86,11 @@ export default function App() {
         {tab === 'calendar' ? <CalendarTab me={me} onOpenEvent={(e) => setDetail({ kind: 'event', item: e })} /> : null}
         {tab === 'people' ? <PeopleTab me={me} refreshMe={refreshMe} /> : null}
         {tab === 'plans' ? <PlansTab me={me} /> : null}
+        {tab === 'pipeline' ? <Pipeline /> : null}
       </main>
 
-      <nav className="tabbar" aria-label="Sections">
-        {TABS.map((t) => (
+      <nav className={`tabbar ${me.is_owner ? 'tabbar-5' : ''}`} aria-label="Sections">
+        {(me.is_owner ? [...TABS, { id: 'pipeline', label: 'Sources' }] : TABS).map((t) => (
           <button key={t.id} type="button" className={tab === t.id ? 'on' : ''} aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
             {t.label}
           </button>

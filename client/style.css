@@ -375,3 +375,20 @@ p { margin: 0 0 8px; }
   color: var(--ink);
 }
 .field-link { font-family: var(--mono); font-size: 14px; }
+
+.tabbar-5 { grid-template-columns: repeat(5, 1fr); }
+.tabbar-5 button { font-size: 12px; }
+
+.maperror {
+  position: absolute; top: 50%; left: 16px; right: 16px;
+  transform: translateY(-50%);
+  margin: 0; padding: 14px;
+  background: var(--sheet); color: var(--ink);
+  border: 1px solid var(--rule-hard); border-radius: 2px;
+  font-size: 14px; text-align: center;
+}
+
+.counts { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.counts li { display: flex; gap: 5px; align-items: baseline; font-size: 13px; }
+.counts-k { color: var(--ink-2); }
+.counts-v { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }

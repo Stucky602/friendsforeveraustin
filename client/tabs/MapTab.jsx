@@ -4,7 +4,26 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { api, cacheGet, cacheSet, getHomeAnchor, setHomeAnchor, todayInAustin, addDays, dayLabel, timeLabel, km, roughMinutes } from '../data.js';
 import { Button, Empty, ErrorNote, Spinner, Names } from '../ui.jsx';
 
-const STYLE = 'https://tiles.openfreemap.org/styles/bright';
+// Tried in order. The first one that returns a usable style JSON wins. A blank map with no
+// explanation is the worst possible failure, so if every one fails we say so on screen.
+const STYLES = [
+  'https://tiles.openfreemap.org/styles/liberty',
+  'https://tiles.openfreemap.org/styles/bright',
+  'https://tiles.openfreemap.org/styles/positron',
+  'https://demotiles.maplibre.org/style.json',
+];
+
+async function firstWorkingStyle() {
+  for (const url of STYLES) {
+    try {
+      const r = await fetch(url, { mode: 'cors' });
+      if (!r.ok) continue;
+      const style = await r.json();
+      if (style && style.version && style.sources) return { style, url };
+    } catch { /* try the next one */ }
+  }
+  return null;
+}
 const AUSTIN = { lng: -97.75, lat: 30.32, zoom: 10.2 };
 const VIEWS = [
   { id: 'foodie', label: 'Food' },
@@ -20,6 +39,8 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
   const [loading, setLoading] = useState(true);
   const [anchor, setAnchor] = useState(null);
   const [sheet, setSheet] = useState('half');
+  const [mapError, setMapError] = useState(null);
+  const [mapReady, setMapReady] = useState(0);
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const markersRef = useRef([]);
@@ -31,15 +52,45 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
   // map init, once
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: STYLE,
-      center: [AUSTIN.lng, AUSTIN.lat],
-      zoom: AUSTIN.zoom,
-      attributionControl: { compact: true },
-    });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
+    let cancelled = false;
+    let map = null;
+    let observer = null;
+
+    (async () => {
+      const found = await firstWorkingStyle();
+      if (cancelled || !containerRef.current) return;
+      if (!found) {
+        setMapError('The map tiles would not load. Everything else on this screen still works.');
+        return;
+      }
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: found.style,
+        center: [AUSTIN.lng, AUSTIN.lat],
+        zoom: AUSTIN.zoom,
+        attributionControl: { compact: true },
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+      map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
+      map.on('error', (e) => { if (e?.error?.status === 404 || e?.error?.status === 403) setMapError('The map tiles would not load. Everything else on this screen still works.'); });
+      // A flex parent can size after the map is constructed, which leaves it blank until it resizes.
+      map.once('load', () => map.resize());
+      observer = new ResizeObserver(() => map && map.resize());
+      observer.observe(containerRef.current);
+      attach(map);
+      mapRef.current = map;
+      setMapReady((n) => n + 1);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (observer) observer.disconnect();
+      if (map) map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  function attach(map) {
     let pressTimer = null;
     const startPress = (e) => {
       clearTimeout(pressTimer);
@@ -56,13 +107,7 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
     map.on('touchstart', startPress);
     map.on('mousedown', startPress);
     for (const ev of ['touchend', 'touchmove', 'mouseup', 'movestart', 'dragstart']) map.on(ev, cancelPress);
-    mapRef.current = map;
-    return () => {
-      clearTimeout(pressTimer);
-      map.remove();
-      mapRef.current = null;
-    };
-  }, []);
+  }
 
   const load = async () => {
     setLoading(true);
@@ -117,7 +162,7 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
       el.onclick = () => (pin.kind === 'event' ? onOpenEvent(pin.item) : onOpenPlace(pin.item));
       return new maplibregl.Marker({ element: el }).setLngLat([pin.lng, pin.lat]).addTo(map);
     });
-  }, [pins]);
+  }, [pins, mapReady]);
 
   const fallback = useMemo(() => {
     const list = night?.fallback_places ?? [];
@@ -141,6 +186,7 @@ export default function MapTab({ me, view, setView, onOpenPlace, onOpenEvent }) 
   return (
     <div className="maptab">
       <div className="map" ref={containerRef} />
+      {mapError ? <p className="maperror">{mapError}</p> : null}
 
       <div className="map-top">
         <div className="viewswitch" role="tablist" aria-label="What to show">

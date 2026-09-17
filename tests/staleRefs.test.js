@@ -6,10 +6,14 @@ import { join } from 'node:path';
 function walk(dir, out = []) { for (const f of readdirSync(dir)) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p, out); else if (/\.(jsx?|css|html)$/.test(p)) out.push(p); } return out; }
 const client = walk('client').map((f) => [f, readFileSync(f, 'utf8')]);
 
-test('exactly the four tabs are registered', () => {
+test('four tabs for everyone, a fifth only for the owner', () => {
   const app = client.find(([f]) => f.endsWith('App.jsx'))[1];
   const ids = [...app.matchAll(/\{ id: '(\w+)', label: '([\w ]+)' \}/g)].map((m) => m[2]);
-  assert.deepEqual(ids, ['Map', 'Calendar', 'People', 'Plans']);
+  assert.deepEqual(ids, ['Map', 'Calendar', 'People', 'Plans', 'Sources']);
+  assert.match(app, /me\.is_owner \? \[\.\.\.TABS, \{ id: 'pipeline'/, 'the fifth tab is owner-gated');
+  for (const id of ['map', 'calendar', 'people', 'plans', 'pipeline']) {
+    assert.ok(app.includes(`tab === '${id}'`), `no panel rendered for ${id}`);
+  }
 });
 
 test('every tab file the shell imports exists', () => {
