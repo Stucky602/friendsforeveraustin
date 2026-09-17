@@ -124,3 +124,9 @@ test('bad or missing token is 401 with the one sentence', async () => {
   assert.equal(r.data.error, 'token');
   assert.equal((await call(app, 'zzzzzzzzzzzzzzzzzzzzzzzzzz', 'GET', '/api/me')).status, 401);
 });
+
+test('is_owner is true only for the room owner', async () => {
+  const { app } = await seed();
+  assert.equal((await call(app, TOKENS.kevin, 'GET', '/api/me')).data.is_owner, true);
+  assert.equal((await call(app, TOKENS.josh, 'GET', '/api/me')).data.is_owner, false);
+});

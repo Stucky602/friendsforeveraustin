@@ -51,3 +51,19 @@ test('bootstrap: secret-guarded, once only', async () => {
   const r = await call(app, null, 'POST', '/api/bootstrap', { owner_name: 'X' }, { 'x-bootstrap-secret': 'boot' });
   assert.equal(r.status, 409, 'a room already exists in the fixture');
 });
+
+test('adding a person: owner only, validated, link is usable immediately', async () => {
+  const { app } = await seed();
+  assert.equal((await call(app, TOKENS.josh, 'POST', '/api/admin/people', { display_name: 'Nope' })).status, 403);
+  assert.equal((await call(app, TOKENS.kevin, 'POST', '/api/admin/people', { display_name: '' })).status, 400);
+  const r = await call(app, TOKENS.kevin, 'POST', '/api/admin/people', { display_name: 'Dana R', groups: ['kids', 'bogus'] });
+  assert.equal(r.status, 201);
+  assert.deepEqual(r.data.person.groups, ['kids'], 'unknown groups are dropped, not rejected');
+  assert.equal(r.data.person.default_view, 'kids', 'defaults to the first group picked');
+  const token = new URL(r.data.link).hash.split('/').pop();
+  const me = await call(app, token, 'GET', '/api/me');
+  assert.equal(me.status, 200);
+  assert.equal(me.data.person.display_name, 'Dana R');
+  assert.equal(me.data.is_owner, false);
+  assert.ok((await call(app, TOKENS.kevin, 'GET', '/api/people')).data.people.some((p) => p.display_name === 'Dana R'));
+});

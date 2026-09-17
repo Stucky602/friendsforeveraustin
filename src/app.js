@@ -48,7 +48,7 @@ export function createApp(repo, env = {}, deps = {}) {
 
   // ---------- self ----------
   const safePerson = (p) => { const { token_hash, ...rest } = p; return rest; };
-  on('GET', '/api/me', async ({ v, ctx }) => json({ person: safePerson(v.person), room: pick(v.room, ['id', 'name', 'bar']), default_view: v.person.default_view, mutual_ids: [...ctx.mutuals], version }));
+  on('GET', '/api/me', async ({ v, ctx }) => json({ person: safePerson(v.person), room: pick(v.room, ['id', 'name', 'bar']), is_owner: v.room.owner_person_id === v.person.id, default_view: v.person.default_view, mutual_ids: [...ctx.mutuals], version }));
   on('PUT', '/api/me', async ({ v, request }) => {
     const b = await readJson(request);
     const patch = {};

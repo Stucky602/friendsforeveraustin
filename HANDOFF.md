@@ -1,9 +1,22 @@
 # HANDOFF.md
 
 ## 1. Deployed
-Nothing yet. Kevin moves this line once it is live.
+v0.1.0 is live on Cloudflare. Kevin moves this line when v0.1.1 is pushed.
 
-## 2. Since deployed (v0.1.0, full repo)
+## 2. Since deployed (v0.1.1, delta on top of v0.1.0)
+
+**This zip contains four files only.** No migration, no change to the test script.
+
+- `src/app.js` — `/api/me` now returns `is_owner`.
+- `client/tabs/PeopleTab.jsx` — the owner gets an Add someone panel, a link handoff with Copy and Text it, and a New link action per person. Adding people no longer needs a console.
+- `client/style.css` — `.field` input style, 16px so iOS does not zoom on focus.
+- `tests/visibility.test.js`, `tests/auth.test.js` — two tests added: `is_owner` is true only for the owner, and the add-person round trip (owner-only, unknown groups dropped, default_view from the first group, returned link immediately usable).
+
+Gap this closed: the admin API shipped with no screen, so the only way to add anyone was a fetch call in a phone console. That was a build error, not a design choice.
+
+---
+
+## v0.1.0 (already pushed)
 Everything in ARCHITECTURE.md §7, steps 1 through 12. Server, client, and pipeline.
 
 **Server**

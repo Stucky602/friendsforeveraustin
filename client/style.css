@@ -361,3 +361,17 @@ p { margin: 0 0 8px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- owner tools ---------- */
+.field {
+  width: 100%;
+  min-height: var(--tap);
+  font: inherit;
+  font-size: 16px; /* under 16px iOS zooms the whole page on focus */
+  padding: 10px 12px;
+  border: 1px solid var(--rule-hard);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.field-link { font-family: var(--mono); font-size: 14px; }
